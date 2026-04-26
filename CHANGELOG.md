@@ -14,6 +14,7 @@ Docs: https://docs.openclaw.ai
 
 - macOS Gateway: detect installed-but-unloaded LaunchAgent split-brain states during status, doctor, and restart, and re-bootstrap launchd supervision before falling back to unmanaged listener restarts. Fixes #67335, #53475, and #71060; refs #58890, #60885, and #70801. Thanks @ze1tgeist88, @dafacto, and @vishutdhar.
 - Plugins/install: stage bundled plugin runtime dependencies before Gateway startup and drain update restarts while preserving per-plugin isolation when pre-stage scan or install fails. Thanks @codex.
+- Gateway/chat: preserve repeated boundary characters in streamed assistant replies so incremental deltas no longer collapse repeated digits, CJK punctuation, markdown emphasis, or table separators. Fixes #63769. Thanks @yon950905 and @mohuaxiao.
 - CLI/startup: read generated startup metadata from the bundled `dist` layout before falling back to live help rendering, so root/browser help and channel-option bootstrap stay on the fast path. Thanks @vincentkoc.
 - CLI/help: treat positional `help` invocations like `openclaw channels help` as help paths for startup gating, avoiding model/auth warmup while preserving positional arguments such as `openclaw docs help`. Thanks @gumadeiras.
 - Web search: route plugin-scoped web_search SecretRefs through the active runtime config snapshot so provider execution receives resolved credentials across app/runtime paths, including `plugins.entries.brave.config.webSearch.apiKey`. Fixes #68690. Thanks @VACInc.
