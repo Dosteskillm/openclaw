@@ -15,7 +15,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: dosteskillm/openclaw
   # GitHub-hosted runners have direct internet access; no proxy needed.
   # If using a self-hosted runner with a proxy, uncomment below:
   # HTTP_PROXY: http://your-proxy-ip:port
