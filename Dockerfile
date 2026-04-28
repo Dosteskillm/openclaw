@@ -168,24 +168,29 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
   fi && \
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   procps hostname curl wget git vim lsof openssl \
-  python3 python3-pip python3-venv build-essential ffmpeg
+  python3 python3-pip python3-venv python-is-python3 build-essential ffmpeg
 
 RUN chown node:node /app
 
 # 条件配置 pip / uv 国内源（本地构建加 --build-arg OPENCLAW_USE_CHINA_MIRROR=1）
 ARG OPENCLAW_USE_CHINA_MIRROR
 RUN set -eux; \
+    office_python_packages="openpyxl xlsxwriter python-docx python-pptx pypdf pdfplumber beautifulsoup4 lxml markdownify html2text pandas tabulate rich python-dateutil dateparser rapidfuzz pillow requests httpx pydantic"; \
     if [ "${OPENCLAW_USE_CHINA_MIRROR}" = "1" ]; then \
       pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
       pip3 config set global.trusted-host pypi.tuna.tsinghua.edu.cn && \
-      pip3 install --break-system-packages -i https://pypi.tuna.tsinghua.edu.cn/simple uv; \
+      pip3 install --break-system-packages --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple uv $office_python_packages; \
     else \
-      pip3 install --break-system-packages uv; \
+      pip3 install --break-system-packages --no-cache-dir uv $office_python_packages; \
     fi && \
-    ln -sf $(which uv) /usr/local/bin/uvx
+    ln -sf "$(which uv)" /usr/local/bin/uvx
 
 # 配置 pip 默认使用 --break-system-packages（Debian PEP 668 限制）
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
+ENV PYTHONUSERBASE=/home/node/.local
+ENV PIP_CACHE_DIR=/home/node/.cache/pip
+ENV UV_CACHE_DIR=/home/node/.cache/uv
+ENV PATH=/home/node/.local/bin:${PATH}
 
 # Leave uv runtime indexes unset by default so GitHub-built images use uv defaults.
 # OPENCLAW_USE_CHINA_MIRROR only affects the build-time uv install above.
@@ -199,8 +204,8 @@ COPY --from=runtime-assets --chown=node:node /app/skills ./skills
 COPY --from=runtime-assets --chown=node:node /app/docs ./docs
 COPY --from=runtime-assets --chown=node:node /app/qa ./qa
 
-# 安装 mmx-cli（全局可用，运行时可执行 mmx 命令）
-RUN npm install -g mmx-cli
+# 安装常用办公/企业微信 CLI（全局可用）
+RUN npm install -g mmx-cli @wecom/cli
 
 # Keep pnpm available in the runtime image for container-local workflows.
 # Use a shared Corepack home so the non-root `node` user does not need a
@@ -279,8 +284,9 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
   && chmod 755 /app/openclaw.mjs
 
-# 创建 uv 缓存目录并授权给 node 用户
-RUN mkdir -p /home/node/.cache/uv && chown -R node:node /home/node/.cache
+# 创建 Python/uv 用户目录并授权给 node 用户
+RUN mkdir -p /home/node/.cache/uv /home/node/.cache/pip /home/node/.local/bin \
+  && chown -R node:node /home/node/.cache /home/node/.local
 
 ENV NODE_ENV=production
 
