@@ -51,6 +51,11 @@ const ALLOWED_GATEWAY_CONFIG_PATHS = [
   "channels.*.*.*.requireMention",
   "channels.*.*.*.*.requireMention",
   "channels.*.*.*.*.*.requireMention",
+  // WeCom onboarding: allow the wecom-connect skill to write credentials
+  // after the user completes the WeCom auth flow.
+  "channels.wecom.botId",
+  "channels.wecom.secret",
+  "channels.wecom.enabled",
 ] as const;
 
 /** @internal Exposed for regression tests only; do not import from runtime code. */

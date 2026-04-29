@@ -69,6 +69,21 @@ describe("gateway config mutation guard coverage", () => {
     );
   });
 
+  it("allows writing wecom credentials via config.patch", () => {
+    expectAllowed(
+      {},
+      {
+        channels: {
+          wecom: {
+            botId: "test-bot-id",
+            secret: "test-secret",
+            enabled: true,
+          },
+        },
+      },
+    );
+  });
+
   it("blocks disabling sandbox mode via config.patch", () => {
     expectBlocked(
       { agents: { defaults: { sandbox: { mode: "all" } } } },
