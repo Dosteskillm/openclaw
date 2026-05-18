@@ -16,7 +16,6 @@ ARG OPENCLAW_EXTENSIONS=""
 ARG OPENCLAW_VARIANT=default
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
 ARG OPENCLAW_DOCKER_APT_UPGRADE=1
-ARG OPENCLAW_USE_CHINA_MIRROR=0
 ARG OPENCLAW_NODE_BOOKWORM_IMAGE="node:24-bookworm@sha256:3a09aa6354567619221ef6c45a5051b671f953f0a1924d1f819ffb236e520e6b"
 ARG OPENCLAW_NODE_BOOKWORM_DIGEST="sha256:3a09aa6354567619221ef6c45a5051b671f953f0a1924d1f819ffb236e520e6b"
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_IMAGE="node:24-bookworm-slim@sha256:e8e2e91b1378f83c5b2dd15f0247f34110e2fe895f6ca7719dbb780f929368eb"
@@ -172,17 +171,12 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 
 RUN chown node:node /app
 
-# 条件配置 pip / uv 国内源（本地构建加 --build-arg OPENCLAW_USE_CHINA_MIRROR=1）
-ARG OPENCLAW_USE_CHINA_MIRROR
+# 默认配置 pip / uv 国内源
+ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple/ \
+  UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple/
 RUN set -eux; \
-    office_python_packages="openpyxl xlsxwriter python-docx python-pptx pypdf pdfplumber beautifulsoup4 lxml markdownify html2text pandas tabulate rich python-dateutil dateparser rapidfuzz pillow requests httpx pydantic"; \
-    if [ "${OPENCLAW_USE_CHINA_MIRROR}" = "1" ]; then \
-      pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
-      pip3 config set global.trusted-host pypi.tuna.tsinghua.edu.cn && \
-      pip3 install --break-system-packages --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple uv $office_python_packages; \
-    else \
-      pip3 install --break-system-packages --no-cache-dir uv $office_python_packages; \
-    fi && \
+    office_python_packages="openpyxl xlsxwriter python-docx python-pptx pypdf PyPDF2 pdfplumber PyMuPDF beautifulsoup4 lxml markdownify html2text pandas numpy tabulate rich python-dateutil dateparser rapidfuzz pillow requests httpx pydantic"; \
+    pip3 install --break-system-packages --no-cache-dir uv "markitdown[pptx]" $office_python_packages && \
     ln -sf "$(which uv)" /usr/local/bin/uvx
 
 # 配置 pip 默认使用 --break-system-packages（Debian PEP 668 限制）
@@ -192,8 +186,14 @@ ENV PIP_CACHE_DIR=/home/node/.cache/pip
 ENV UV_CACHE_DIR=/home/node/.cache/uv
 ENV PATH=/home/node/.local/bin:${PATH}
 
-# Leave uv runtime indexes unset by default so GitHub-built images use uv defaults.
-# OPENCLAW_USE_CHINA_MIRROR only affects the build-time uv install above.
+ENV OPENCLAW_OFFICE_JS_ROOT=/opt/openclaw-office-js
+ENV NODE_PATH=/opt/openclaw-office-js/node_modules
+ENV PATH=/opt/openclaw-office-js/node_modules/.bin:${PATH}
+
+COPY docker/office-js/package.json docker/office-js/package-lock.json /opt/openclaw-office-js/
+RUN --mount=type=cache,id=openclaw-office-js-npm-cache,target=/root/.npm,sharing=locked \
+  cd "$OPENCLAW_OFFICE_JS_ROOT" && \
+  npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 COPY --from=runtime-assets --chown=node:node /app/dist ./dist
 COPY --from=runtime-assets --chown=node:node /app/node_modules ./node_modules
@@ -204,8 +204,24 @@ COPY --from=runtime-assets --chown=node:node /app/skills ./skills
 COPY --from=runtime-assets --chown=node:node /app/docs ./docs
 COPY --from=runtime-assets --chown=node:node /app/qa ./qa
 
+RUN for pkg in \
+  pptxgenjs \
+  xlsx \
+  exceljs \
+  docx \
+  mammoth \
+  pdf-lib \
+  react-icons \
+  react \
+  react-dom; do \
+  ln -sfn "$OPENCLAW_OFFICE_JS_ROOT/node_modules/$pkg" "/app/node_modules/$pkg"; \
+  done
+
 # 安装常用办公/企业微信 CLI（全局可用）
-RUN npm install -g mmx-cli @wecom/cli
+RUN --mount=type=cache,id=openclaw-npm-cache,target=/root/.npm,sharing=locked \
+  npm install -g --ignore-scripts --no-audit --no-fund \
+  mmx-cli@1.0.12 \
+  @wecom/cli@0.1.6
 
 # Keep pnpm available in the runtime image for container-local workflows.
 # Use a shared Corepack home so the non-root `node` user does not need a
